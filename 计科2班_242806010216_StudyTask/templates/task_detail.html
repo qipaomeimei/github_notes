@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}{{ task.title }} · StudyTask{% endblock %}
+
+{% block content %}
+<section class="panel panel-narrow">
+  <div class="detail-head">
+    <h1 class="panel-title">{{ task.title }}</h1>
+    <div class="detail-badges">
+      <span class="badge badge-p{{ {'高': 'high', '中': 'mid', '低': 'low'}[task.priority] }}">优先级：{{ task.priority }}</span>
+      <span class="badge badge-s{{ {'待完成': 'todo', '进行中': 'doing', '已完成': 'done'}[task.status] }}">状态：{{ task.status }}</span>
+      {% if task.due_state == "overdue" %}
+        <span class="badge badge-danger">已逾期 {{ -task.days_left }} 天</span>
+      {% elif task.due_state == "soon" %}
+        <span class="badge badge-warn">即将到期</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <dl class="detail-list">
+    <dt>所属课程</dt><dd>{{ task.course }}</dd>
+    <dt>截止日期</dt><dd>{{ task.due_date }}</dd>
+    <dt>任务描述</dt><dd class="pre">{{ task.description or "（未填写）" }}</dd>
+    <dt>创建时间</dt><dd>{{ task.created_at }}</dd>
+    <dt>更新时间</dt><dd>{{ task.updated_at }}</dd>
+  </dl>
+
+  <div class="status-block">
+    <span class="status-label">调整状态：</span>
+    {% for s in ["待完成", "进行中", "已完成"] %}
+      <form method="post" action="{{ url_for('change_status', task_id=task.id) }}" class="inline-form">
+        <input type="hidden" name="status" value="{{ s }}">
+        <button class="btn btn-sm {{ 'btn-primary' if task.status == s else 'btn-ghost' }}"
+                type="submit" {% if task.status == s %}disabled{% endif %}>{{ s }}</button>
+      </form>
+    {% endfor %}
+  </div>
+
+  <div class="form-actions">
+    <a class="btn btn-primary" href="{{ url_for('edit_task', task_id=task.id) }}">编辑任务</a>
+    <a class="btn btn-danger" href="{{ url_for('delete_task', task_id=task.id) }}">删除任务</a>
+    <a class="btn btn-ghost" href="{{ url_for('index') }}">返回列表</a>
+  </div>
+</section>
+{% endblock %}
