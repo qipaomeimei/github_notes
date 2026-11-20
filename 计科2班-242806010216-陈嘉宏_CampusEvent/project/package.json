@@ -1,0 +1,15 @@
+{
+  "name": "campus-event",
+  "version": "1.0.0",
+  "private": true,
+  "description": "校园活动报名与管理系统（软件工程实验二）",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test ../tests"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

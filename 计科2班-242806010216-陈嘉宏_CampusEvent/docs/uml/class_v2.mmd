@@ -1,0 +1,114 @@
+classDiagram
+    %% CampusEvent change-v2 UML 类图（CR-01：候补 / 多渠道通知 / 软删除）
+    class Student {
+        -String id
+        -String name
+        -Role role
+        -String passwordHash
+        +isAdmin() Boolean
+    }
+    class Activity {
+        -Integer id
+        -String title
+        -Integer capacity
+        -PolicyType policyType
+        -ActivityStatus status
+        +hasStarted(now) Boolean
+        +remainingSeats(approvedCount) Integer
+        +isArchived() Boolean
+    }
+    class Registration {
+        -Integer id
+        -Integer activityId
+        -String studentId
+        -RegistrationStatus status
+        -Integer waitlistSeq
+        +isActive() Boolean
+        +canCancel() Boolean
+    }
+    class Message {
+        -Integer id
+        -String studentId
+        -String content
+        -Boolean isRead
+    }
+    class RegistrationPolicy {
+        <<interface>>
+        +decide(ctx) Decision
+    }
+    class DirectRegistrationPolicy {
+        +decide(ctx) Decision
+    }
+    class ApprovalRegistrationPolicy {
+        +decide(ctx) Decision
+    }
+    class WaitlistRegistrationPolicy {
+        +decide(ctx) Decision
+    }
+    class PolicyFactory {
+        -Map policies
+        +create(type) RegistrationPolicy
+        +register(policy) void
+        +has(type) Boolean
+    }
+    class RegistrationService {
+        +register(studentId, activityId)
+        +cancel(registrationId, studentId)
+        +approve(registrationId, adminId)
+        +reject(registrationId, adminId)
+        +promoteWaitlist(activity) List
+    }
+    class ActivityService {
+        +create(input) Activity
+        +update(id, input) Activity
+        +delete(id) Activity
+        +restore(id) Activity
+        +getStats(id) Stats
+    }
+    class AuthService {
+        +login(account, password) Student
+        +resolveSession(token) Student
+    }
+    class RegistrationEvent {
+        -String id
+        -RegistrationEventType type
+        -String studentId
+        -String status
+        -Integer waitlistPosition
+        -String source
+    }
+    class DomainEventBus {
+        +subscribe(type, handler) void
+        +publish(event) void
+    }
+    class NotificationService {
+        +handle(event) void
+        -deliver(event) void
+    }
+    class InAppNotificationChannel {
+        +name String
+        +send(event) void
+    }
+    class EmailNotificationChannel {
+        +name String
+        +send(event) void
+    }
+    class EmailRepository {
+        +create(record)
+        +listRecent() List
+        +count() Integer
+    }
+
+    Registration --> Activity : activityId
+    Registration --> Student : studentId
+    Message --> Student
+    DirectRegistrationPolicy ..|> RegistrationPolicy
+    ApprovalRegistrationPolicy ..|> RegistrationPolicy
+    WaitlistRegistrationPolicy ..|> RegistrationPolicy
+    PolicyFactory ..> RegistrationPolicy : creates
+    RegistrationService ..> RegistrationPolicy : uses
+    RegistrationService ..> DomainEventBus : publish
+    RegistrationService ..> EmailRepository : via channel
+    NotificationService ..> RegistrationEvent : observes
+    NotificationService --> InAppNotificationChannel
+    NotificationService --> EmailNotificationChannel
