@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}{{ activity.title }} · CampusEvent{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('student.activity_list') }}">← 返回活动广场</a>
+
+<div class="detail-grid">
+  <section class="card detail-main">
+    <div class="tag-row">
+      <span class="tag">{{ activity.category }}</span>
+      <span class="tag tag-outline">{{ policy_label(activity.policy_type) }}</span>
+      {% if activity.start_at <= now %}<span class="tag tag-muted">已开始</span>{% endif %}
+    </div>
+    <h1>{{ activity.title }}</h1>
+    <dl class="meta meta-lg">
+      <div><dt>活动时间</dt><dd>{{ activity.start_at|dt }}</dd></div>
+      <div><dt>活动地点</dt><dd>{{ activity.location }}</dd></div>
+      <div><dt>报名方式</dt><dd>{{ policy_description(activity.policy_type) }}</dd></div>
+    </dl>
+    <div class="section">
+      <h2>活动介绍</h2>
+      <p class="pre-line">{{ activity.description or '暂无活动介绍。' }}</p>
+    </div>
+  </section>
+
+  <aside class="card detail-side">
+    <h2>报名情况</h2>
+    <div class="stat-grid">
+      <div class="stat"><strong>{{ stats.approved }}</strong><span>已通过</span></div>
+      <div class="stat"><strong>{{ stats.pending }}</strong><span>待审核</span></div>
+      <div class="stat"><strong>{{ stats.waitlisted }}</strong><span>候补中</span></div>
+      <div class="stat"><strong>{{ stats.remaining }}</strong><span>剩余名额</span></div>
+      <div class="stat"><strong>{{ stats.capacity }}</strong><span>总名额</span></div>
+    </div>
+
+    <hr>
+
+    {% if my_registration %}
+      <h3>我的报名</h3>
+      <p><span class="badge {{ status_classes[my_registration.status.value] }}">{{ status_labels[my_registration.status.value] }}</span></p>
+      <p class="muted small">提交时间：{{ my_registration.created_at|dt }}</p>
+      {% if my_registration.status.value in ['pending', 'approved', 'waitlisted'] %}
+      <form method="post" action="{{ url_for('student.cancel_registration', registration_id=my_registration.registration_id) }}" onsubmit="return confirm('确定取消该报名吗？');">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn-danger btn-block">取消报名</button>
+      </form>
+      {% endif %}
+    {% elif activity.start_at <= now %}
+      <p class="muted">活动已开始，报名通道已关闭。</p>
+    {% elif activity.policy_type == 'direct' and stats.remaining == 0 %}
+      <p class="muted">名额已满，无法报名。</p>
+    {% else %}
+      {% set waitlist_full = activity.policy_type == 'waitlist' and stats.remaining == 0 %}
+      <form method="post" action="{{ url_for('student.register', activity_id=activity.activity_id) }}">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn-primary btn-block">
+          {% if activity.policy_type == 'approval' %}提交报名申请{% elif waitlist_full %}加入候补队列{% else %}立即报名{% endif %}
+        </button>
+      </form>
+      <p class="muted small">
+        {% if activity.policy_type == 'approval' %}
+        提交后进入待审核状态，待审核期间不占用名额。
+        {% elif waitlist_full %}
+        名额已满，提交后进入候补队列；出现空位时按加入顺序自动递补并通知。
+        {% elif activity.policy_type == 'waitlist' %}
+        当前有名额，提交后立即报名成功；满员后其他同学可加入候补队列。
+        {% else %}
+        提交后立即报名成功，并收到站内消息与邮件通知。
+        {% endif %}
+      </p>
+    {% endif %}
+
+    <p class="muted small">报名结果会写入 <a href="{{ url_for('student.messages') }}">站内消息</a>，并同时生成邮件通知。</p>
+  </aside>
+</div>
+{% endblock %}

@@ -1,0 +1,200 @@
+﻿@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam dpi 140
+skinparam padding 12
+skinparam defaultFontName "Microsoft YaHei"
+skinparam classAttributeIconSize 0
+skinparam nodesep 28
+skinparam ranksep 45
+skinparam class {
+  BackgroundColor<<domain>> #EAF0FF
+  BackgroundColor<<application>> #E8F7EF
+  BackgroundColor<<infrastructure>> #F5F1FB
+  BackgroundColor<<v2>> #FFF6E5
+  BorderColor #9AA4B2
+  HeaderBackgroundColor<<domain>> #D8E3FF
+  HeaderBackgroundColor<<application>> #CFEEDD
+  HeaderBackgroundColor<<infrastructure>> #E9E1F8
+  HeaderBackgroundColor<<v2>> #FFE7B8
+}
+hide circle
+title CampusEvent 变更版本（change-v2）UML 类图
+
+class Student <<domain>> {
+  studentId : String
+  name : String
+  email : String {v2 新增}
+}
+
+class Activity <<domain>> {
+  activityId : int
+  title : String
+  category : String
+  startAt : DateTime
+  location : String
+  capacity : int
+  policyType : String
+  isDeleted : bool
+  isOpen() : bool
+}
+
+class Registration <<domain>> {
+  registrationId : int
+  status : RegistrationStatus
+  createdAt : DateTime
+}
+
+enum RegistrationStatus <<domain>> {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  WAITLISTED {v2 新增}
+}
+
+interface RegistrationPolicy <<domain>> {
+  typeName : String
+  decide(ctx : RegistrationContext) : PolicyDecision
+}
+
+class DirectRegistrationPolicy <<domain>> {
+  decide(ctx) : PolicyDecision
+}
+
+class ApprovalRegistrationPolicy <<domain>> {
+  decide(ctx) : PolicyDecision
+}
+
+class WaitlistRegistrationPolicy <<v2>> {
+  decide(ctx) : PolicyDecision
+}
+
+class RegistrationContext <<domain>> {
+  activity : Activity
+  studentId : String
+  approvedCount : int
+  remaining : int
+}
+
+class PolicyDecision <<domain>> {
+  accepted : bool
+  status : RegistrationStatus
+  reason : String
+}
+
+class RegistrationPolicyFactory <<domain>> {
+  create(typeName) : RegistrationPolicy
+}
+
+class ActivityStats <<domain>> {
+  capacity : int
+  approved : int
+  pending : int
+  remaining : int
+  waitlisted : int {v2 新增}
+}
+
+class ActivityService <<application>> {
+  createActivity(...)
+  updateActivity(...)
+  softDeleteActivity(id)
+  listActivities(keyword)
+  stats(activityId)
+}
+
+class RegistrationService <<application>> {
+  register(activityId, studentId)
+  cancel(registrationId, studentId)
+  approve(registrationId)
+  reject(registrationId)
+  promoteWaitlisted(activity) {v2 新增}
+}
+
+interface EventHandler <<application>> {
+  name : String
+  handle(event)
+}
+
+class EventBus <<application>> {
+  publish(event) : bool
+}
+
+class SiteMessageHandler <<application>> {
+  handle(event)
+}
+
+class EmailNotificationHandler <<v2>> {
+  handle(event)
+}
+
+class RegistrationEvent <<application>> {
+  eventId : String
+  eventType : String
+  studentId : String
+  message : String
+}
+
+class ActivityRepository <<infrastructure>>
+class RegistrationRepository <<infrastructure>> {
+  earliestByStatus(activityId, status) {v2 新增}
+}
+class MessageRepository <<infrastructure>>
+class EmailOutboxRepository <<v2>>
+class EventLogRepository <<infrastructure>>
+class NotificationFailureRepository <<infrastructure>>
+
+Student "1" -- "0..*" Registration : 提交 >
+Activity "1" -- "0..*" Registration : 包含 >
+Registration --> RegistrationStatus
+
+DirectRegistrationPolicy ..|> RegistrationPolicy
+ApprovalRegistrationPolicy ..|> RegistrationPolicy
+WaitlistRegistrationPolicy ..|> RegistrationPolicy
+RegistrationPolicyFactory ..> RegistrationPolicy
+RegistrationService ..> RegistrationPolicy : 依赖抽象
+RegistrationService ..> RegistrationContext
+RegistrationPolicy ..> PolicyDecision
+ActivityService ..> ActivityStats
+
+RegistrationService --> ActivityRepository
+RegistrationService --> RegistrationRepository
+RegistrationService --> EventBus : 提交后发布 >
+ActivityService --> ActivityRepository
+ActivityService --> RegistrationRepository
+
+EventBus o-- "0..*" EventHandler
+SiteMessageHandler ..|> EventHandler
+EmailNotificationHandler ..|> EventHandler
+SiteMessageHandler --> MessageRepository
+EmailNotificationHandler --> EmailOutboxRepository
+EventBus ..> RegistrationEvent
+EventBus --> EventLogRepository
+EventBus --> NotificationFailureRepository
+
+note right of WaitlistRegistrationPolicy
+  v2：名额充足 -> APPROVED
+  名额已满 -> WAITLISTED
+  不修改 RegistrationService 主流程，
+  仅新增策略并在工厂注册。
+end note
+
+note bottom of RegistrationService
+  v2：取消已通过报名时，
+  在同一事务内取最早候补并转 APPROVED；
+  事务提交后再发布“取消/递补”两个事件。
+end note
+
+note bottom of EmailNotificationHandler
+  v2：新增邮件渠道只需实现 EventHandler；
+  学生邮箱为空则跳过；
+  邮件写入 email_outbox，不依赖真实 SMTP。
+end note
+
+legend right
+  <<domain>> 领域层
+  <<application>> 应用层
+  <<infrastructure>> 基础设施层
+  <<v2>> 本次变更新增/修改
+end legend
+@enduml

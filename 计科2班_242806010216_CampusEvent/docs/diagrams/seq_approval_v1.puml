@@ -1,0 +1,51 @@
+﻿@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName "Microsoft YaHei"
+hide footbox
+autonumber
+title 初始版本：管理员审批待审核报名
+
+actor "管理员" as Admin
+participant "活动管理页" as UI
+participant "RegistrationService" as Service
+participant "ActivityRepository" as ActivityRepo
+participant "RegistrationRepository" as RegRepo
+participant "EventBus" as Bus
+participant "SiteMessageHandler" as Handler
+database "SQLite" as DB
+
+Admin -> UI : 点击“批准”
+UI -> Service : approve(registrationId)
+
+Service -> RegRepo : get(registrationId)
+RegRepo --> Service : Registration
+Service -> Service : 校验状态必须为 PENDING
+Service -> ActivityRepo : get(activityId, includeDeleted=true)
+ActivityRepo --> Service : Activity
+Service -> RegRepo : count(activityId, APPROVED)
+RegRepo --> Service : approvedCount
+
+alt 活动已下架 / 名额已满
+  Service --> UI : BusinessError("不能批准")
+  UI --> Admin : 显示失败原因
+else 状态合法且有名额
+  Service -> RegRepo : updateStatus(APPROVED)
+  RegRepo -> DB : UPDATE registration
+  Service -> Service : 事务提交
+  Service -> Bus : publish(RegistrationApproved)
+  Bus -> Bus : reserve(eventId)
+  Bus -> Handler : handle(event)
+  Handler -> DB : INSERT message
+  Service --> UI : Registration(APPROVED)
+  UI --> Admin : 显示成功
+end
+
+note over Service, Handler
+  通知处理器抛异常时：
+  回滚该处理器未提交的写入，
+  记录 notification_failures；
+  已提交的报名状态不受影响。
+end note
+@enduml
+

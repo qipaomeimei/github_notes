@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}{{ activity.title }} · 管理{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('admin.dashboard') }}">← 返回活动管理</a>
+
+{% if activity.is_deleted %}
+<div class="alert alert-error">该活动已下架（软删除），历史报名和通知记录保留，不能继续审批。</div>
+{% endif %}
+
+<div class="detail-grid">
+  <section class="card detail-main">
+    <div class="tag-row">
+      <span class="tag">{{ activity.category }}</span>
+      <span class="tag tag-outline">{{ policy_label(activity.policy_type) }}</span>
+      {% if activity.start_at <= now %}<span class="tag tag-muted">已开始</span>{% endif %}
+      {% if activity.is_deleted %}<span class="tag tag-muted">已下架</span>{% endif %}
+    </div>
+    <h1>{{ activity.title }}</h1>
+    <dl class="meta meta-lg">
+      <div><dt>活动时间</dt><dd>{{ activity.start_at|dt }}</dd></div>
+      <div><dt>活动地点</dt><dd>{{ activity.location }}</dd></div>
+      <div><dt>人数上限</dt><dd>{{ activity.capacity }}</dd></div>
+      <div><dt>报名方式</dt><dd>{{ policy_label(activity.policy_type) }}</dd></div>
+    </dl>
+    <p class="pre-line">{{ activity.description or '暂无活动介绍。' }}</p>
+    {% if not activity.is_deleted %}
+    <div class="form-actions">
+      <a class="btn btn-ghost" href="{{ url_for('admin.edit_activity', activity_id=activity.activity_id) }}">编辑活动</a>
+    </div>
+    {% endif %}
+  </section>
+
+  <aside class="card detail-side">
+    <h2>报名统计</h2>
+    <div class="stat-grid">
+      <div class="stat"><strong>{{ stats.approved }}</strong><span>已通过</span></div>
+      <div class="stat"><strong>{{ stats.pending }}</strong><span>待审核</span></div>
+      <div class="stat"><strong>{{ stats.waitlisted }}</strong><span>候补中</span></div>
+      <div class="stat"><strong>{{ stats.remaining }}</strong><span>剩余名额</span></div>
+      <div class="stat"><strong>{{ stats.capacity }}</strong><span>总名额</span></div>
+    </div>
+    <p class="muted small">名额按“已通过”报名计算，待审核与候补不占用名额；已通过报名取消后按候补顺序自动递补。</p>
+  </aside>
+</div>
+
+<section class="card table-card">
+  <div class="table-card-head">
+    <h2>报名记录</h2>
+    <div class="filter-links">
+      <a class="{{ 'active' if not status_filter else '' }}" href="{{ url_for('admin.activity_detail', activity_id=activity.activity_id) }}">全部</a>
+      {% for value, label in status_labels.items() %}
+      <a class="{{ 'active' if status_filter == value else '' }}" href="{{ url_for('admin.activity_detail', activity_id=activity.activity_id, status=value) }}">{{ label }}</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if registrations %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>学号</th>
+          <th>姓名</th>
+          <th>状态</th>
+          <th>提交时间</th>
+          <th>更新时间</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in registrations %}
+        <tr>
+          <td>{{ r.student_id }}</td>
+          <td>{{ r.student_name }}</td>
+          <td><span class="badge {{ status_classes[r.status] }}">{{ status_labels[r.status] }}</span></td>
+          <td>{{ r.created_at|dt }}</td>
+          <td>{{ r.updated_at|dt }}</td>
+          <td>
+            {% if r.status == 'pending' and not activity.is_deleted %}
+            <div class="button-row">
+              <form method="post" action="{{ url_for('admin.approve_registration', registration_id=r.registration_id) }}" class="inline-form">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-primary btn-small">批准</button>
+              </form>
+              <form method="post" action="{{ url_for('admin.reject_registration', registration_id=r.registration_id) }}" class="inline-form" onsubmit="return confirm('确定拒绝该报名申请吗？');">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-danger btn-small">拒绝</button>
+              </form>
+            </div>
+            {% else %}
+            <span class="muted">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty"><p class="muted">暂无符合条件的报名记录。</p></div>
+  {% endif %}
+</section>
+{% endblock %}
