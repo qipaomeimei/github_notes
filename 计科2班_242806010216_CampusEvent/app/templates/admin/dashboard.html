@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}活动管理 · CampusEvent{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>活动管理</h1>
+    <p class="muted">创建、编辑、下架活动，并处理审核型报名。</p>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('admin.new_activity') }}">+ 新建活动</a>
+</div>
+
+{% if items %}
+<div class="card table-card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>活动</th>
+          <th>时间 / 地点</th>
+          <th>报名方式</th>
+          <th>已通过 / 名额</th>
+          <th>待审核</th>
+          <th>候补</th>
+          <th>剩余</th>
+          <th>状态</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        {% set a = item.activity %}
+        <tr class="{{ 'row-muted' if a.is_deleted else '' }}">
+          <td>{{ a.activity_id }}</td>
+          <td>
+            <a href="{{ url_for('admin.activity_detail', activity_id=a.activity_id) }}">{{ a.title }}</a>
+            <div class="muted small">{{ a.category }}</div>
+          </td>
+          <td>
+            <div>{{ a.start_at|dt }}</div>
+            <div class="muted small">{{ a.location }}</div>
+          </td>
+          <td>{{ policy_label(a.policy_type) }}</td>
+          <td>{{ item.stats.approved }} / {{ a.capacity }}</td>
+          <td>{{ item.stats.pending }}</td>
+          <td>{{ item.stats.waitlisted }}</td>
+          <td>{{ item.stats.remaining }}</td>
+          <td>
+            {% if a.is_deleted %}
+              <span class="badge badge-cancelled">已下架</span>
+            {% elif a.start_at <= now %}
+              <span class="badge badge-cancelled">已开始</span>
+            {% else %}
+              <span class="badge badge-approved">报名中</span>
+            {% endif %}
+          </td>
+          <td class="actions">
+            <a class="btn btn-ghost btn-small" href="{{ url_for('admin.activity_detail', activity_id=a.activity_id) }}">查看</a>
+            {% if not a.is_deleted %}
+            <a class="btn btn-ghost btn-small" href="{{ url_for('admin.edit_activity', activity_id=a.activity_id) }}">编辑</a>
+            <form method="post" action="{{ url_for('admin.delete_activity', activity_id=a.activity_id) }}" class="inline-form" onsubmit="return confirm('确定下架该活动吗？历史报名和通知记录会保留。');">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="btn btn-danger btn-small">下架</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card empty">
+  <h2>还没有活动</h2>
+  <p class="muted">点击右上角“新建活动”发布第一个活动。</p>
+</div>
+{% endif %}
+{% endblock %}

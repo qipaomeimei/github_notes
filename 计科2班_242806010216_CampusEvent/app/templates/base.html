@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}CampusEvent 校园活动{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="{{ url_for('student.index') }}">
+        <span class="brand-mark">CE</span>
+        <span>CampusEvent<small>校园活动报名与管理</small></span>
+      </a>
+      {% if current_user %}
+      <nav class="nav">
+        {% if current_user.role == 'student' %}
+          <a href="{{ url_for('student.activity_list') }}">活动广场</a>
+          <a href="{{ url_for('student.my_registrations') }}">我的报名</a>
+          <a href="{{ url_for('student.messages') }}">站内消息{% if unread_count %}<span class="dot">{{ unread_count }}</span>{% endif %}</a>
+        {% else %}
+          <a href="{{ url_for('admin.dashboard') }}">活动管理</a>
+        {% endif %}
+      </nav>
+      <div class="userbox">
+        <span class="user-role">{{ '管理员' if current_user.role == 'admin' else '学生' }}</span>
+        <span class="user-name">{{ current_user.display_name }}</span>
+        <form method="post" action="{{ url_for('auth.logout') }}" class="inline-form">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="link-btn">退出</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+  </header>
+
+  <main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      <div class="alerts">
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category if category in ['success', 'error', 'info'] else 'info' }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    《软件工程》实验二 · 计科2班 242806010216 · CampusEvent
+  </footer>
+</body>
+</html>

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}活动广场 · CampusEvent{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>活动广场</h1>
+    <p class="muted">浏览校园活动，按名称搜索并提交报名。</p>
+  </div>
+  <form method="get" action="{{ url_for('student.activity_list') }}" class="search-form">
+    <input type="search" name="q" value="{{ keyword }}" placeholder="按活动名称搜索">
+    <button type="submit" class="btn btn-primary">搜索</button>
+    {% if keyword %}<a class="btn btn-ghost" href="{{ url_for('student.activity_list') }}">清除</a>{% endif %}
+  </form>
+</div>
+
+{% if items %}
+<div class="activity-grid">
+  {% for item in items %}
+  {% set a = item.activity %}
+  <article class="card activity-card">
+    <div class="tag-row">
+      <span class="tag">{{ a.category }}</span>
+      <span class="tag tag-outline">{{ policy_label(a.policy_type) }}</span>
+      {% if a.start_at <= now %}<span class="tag tag-muted">已开始</span>{% endif %}
+    </div>
+    <h2><a href="{{ url_for('student.activity_detail', activity_id=a.activity_id) }}">{{ a.title }}</a></h2>
+    <dl class="meta">
+      <div><dt>时间</dt><dd>{{ a.start_at|dt }}</dd></div>
+      <div><dt>地点</dt><dd>{{ a.location }}</dd></div>
+    </dl>
+    <div class="capacity">
+      <div class="capacity-text">
+        <span>已通过 {{ item.stats.approved }} / {{ a.capacity }}</span>
+        <span>剩余 {{ item.stats.remaining }} 个名额</span>
+      </div>
+      <div class="bar"><span style="width: {{ (item.stats.approved / a.capacity * 100) if a.capacity else 0 }}%"></span></div>
+      {% if item.stats.pending %}<div class="muted small">另有 {{ item.stats.pending }} 条待审核申请（不占名额）</div>{% endif %}
+      {% if item.stats.waitlisted %}<div class="muted small">候补队列 {{ item.stats.waitlisted }} 人</div>{% endif %}
+    </div>
+    <div class="card-foot">
+      {% if item.my %}
+        <span class="badge {{ status_classes[item.my.status.value] }}">我的报名：{{ status_labels[item.my.status.value] }}</span>
+      {% else %}
+        <span class="muted">尚未报名</span>
+      {% endif %}
+      <a class="btn btn-ghost btn-small" href="{{ url_for('student.activity_detail', activity_id=a.activity_id) }}">查看详情</a>
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card empty">
+  <h2>没有找到活动</h2>
+  <p class="muted">{% if keyword %}没有名称包含「{{ keyword }}」的活动。{% else %}暂无活动，请等待管理员发布。{% endif %}</p>
+</div>
+{% endif %}
+{% endblock %}
