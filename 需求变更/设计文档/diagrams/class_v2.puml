@@ -1,0 +1,197 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam dpi 100
+skinparam padding 10
+skinparam defaultFontName "Microsoft YaHei"
+skinparam classAttributeIconSize 0
+skinparam nodesep 28
+skinparam ranksep 45
+skinparam class {
+  BackgroundColor<<domain>> #EAF0FF
+  BackgroundColor<<application>> #E8F7EF
+  BackgroundColor<<infrastructure>> #F5F1FB
+  BorderColor #9AA4B2
+  HeaderBackgroundColor<<domain>> #D8E3FF
+  HeaderBackgroundColor<<application>> #CFEEDD
+  HeaderBackgroundColor<<infrastructure>> #E9E1F8
+}
+hide circle
+title CampusEvent 变更版本（change-v2）UML 类图
+
+class Student <<domain>> {
+  studentId : String
+  name : String
+  grade : int              <<新增 CR-01>>
+}
+
+class Activity <<domain>> {
+  activityId : int
+  title : String
+  category : String
+  startAt : DateTime
+  location : String
+  capacity : int
+  policyType : String
+  isDeleted : bool
+  isOpen() : bool
+}
+
+class Registration <<domain>> {
+  registrationId : int
+  status : RegistrationStatus
+  createdAt : DateTime
+}
+
+enum RegistrationStatus <<domain>> {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+interface RegistrationPolicy <<domain>> {
+  typeName : String
+  decide(ctx : RegistrationContext) : PolicyDecision
+}
+
+class DirectRegistrationPolicy <<domain>> {
+  decide(ctx) : PolicyDecision
+}
+
+class ApprovalRegistrationPolicy <<domain>> {
+  decide(ctx) : PolicyDecision
+}
+
+class GradeRestrictedDirectPolicy <<domain>> {
+  decide(ctx) : PolicyDecision
+}
+
+class RegistrationContext <<domain>> {
+  activity : Activity
+  studentId : String
+  approvedCount : int
+  studentGrade : int       <<新增 CR-01>>
+}
+
+class PolicyDecision <<domain>> {
+  accepted : bool
+  status : RegistrationStatus
+  reason : String
+}
+
+class RegistrationPolicyFactory <<domain>> {
+  create(typeName) : RegistrationPolicy
+}
+
+class ActivityService <<application>> {
+  createActivity(...)
+  updateActivity(...)
+  softDeleteActivity(id)
+  listActivities(keyword)
+  stats(activityId)
+}
+
+class RegistrationService <<application>> {
+  register(activityId, studentId)
+  cancel(registrationId, studentId)
+  approve(registrationId)
+  reject(registrationId)
+}
+
+interface EventHandler <<application>> {
+  name : String
+  handle(event)
+}
+
+class EventBus <<application>> {
+  publish(event) : bool
+}
+
+class SiteMessageHandler <<application>> {
+  name = "site_message"
+  handle(event)
+}
+
+class EmailNotificationHandler <<application>> {
+  name = "email"
+  handle(event)
+}
+
+class MockEmailSender <<infrastructure>> {
+  failRate : float
+  injectedException : Exception
+  send(to, subject, body)
+}
+
+class RegistrationEvent <<application>> {
+  eventId : String
+  eventType : String
+  studentId : String
+  message : String
+}
+
+class ActivityRepository <<infrastructure>>
+class RegistrationRepository <<infrastructure>>
+class MessageRepository <<infrastructure>>
+class EmailOutboxRepository <<infrastructure>>
+class StudentRepository <<infrastructure>>
+
+Student "1" -- "0..*" Registration : 提交 >
+Activity "1" -- "0..*" Registration : 包含 >
+Registration --> RegistrationStatus
+
+DirectRegistrationPolicy ..|> RegistrationPolicy
+ApprovalRegistrationPolicy ..|> RegistrationPolicy
+GradeRestrictedDirectPolicy ..|> RegistrationPolicy
+RegistrationPolicyFactory ..> RegistrationPolicy
+RegistrationService ..> RegistrationPolicy : 依赖抽象
+RegistrationService ..> RegistrationContext
+RegistrationPolicy ..> PolicyDecision
+RegistrationService ..> StudentRepository : 查年级 >
+
+RegistrationService --> ActivityRepository
+RegistrationService --> RegistrationRepository
+RegistrationService --> EventBus : 提交后发布 >
+ActivityService --> ActivityRepository
+ActivityService --> RegistrationRepository
+
+EventBus o-- "0..*" EventHandler
+SiteMessageHandler ..|> EventHandler
+EmailNotificationHandler ..|> EventHandler
+SiteMessageHandler --> MessageRepository
+EmailNotificationHandler ..> MockEmailSender
+EmailNotificationHandler --> EmailOutboxRepository
+EventBus ..> RegistrationEvent
+
+note right of RegistrationService
+  公共规则仍在服务层：
+  活动未开始、无重复有效报名
+  名额判断在策略层
+end note
+
+note bottom of EventBus
+  eventId 幂等，避免重复通知；
+  通知失败写 notification_failures，
+  不回滚已提交报名
+  对站内消息与邮件同时生效
+end note
+
+note bottom of GradeRestrictedDirectPolicy
+  CR-01：先判年级，再判名额
+  非 2/3 年级 -> 明确提示
+end note
+
+note bottom of EmailNotificationHandler
+  CR-02：投递结果写 email_outbox
+  失败先独立提交再抛出，
+  交由 EventBus 隔离
+end note
+
+legend right
+  <<domain>> 领域层
+  <<application>> 应用层
+  <<infrastructure>> 基础设施层
+  粗体标注为 change-v2 新增
+end legend
+@enduml

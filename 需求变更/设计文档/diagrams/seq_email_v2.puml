@@ -1,0 +1,63 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam dpi 140
+skinparam defaultFontName "Microsoft YaHei"
+skinparam sequenceMessageAlign center
+title change-v2 报名通知时序（站内消息 + 邮件，故障隔离）
+
+actor 学生
+participant "报名页面\n(routes/student.py)" as UI
+participant "RegistrationService" as SVC
+participant "EventBus" as BUS
+participant "SiteMessageHandler" as MSG
+participant "EmailNotificationHandler" as MAIL
+participant "MockEmailSender" as SENDER
+database "SQLite" as DB
+
+学生 -> UI : 提交报名
+UI -> SVC : register(activityId, studentId)
+
+SVC -> DB : 查询活动 / 重复报名 / 已通过数
+SVC -> DB : 查询学生 grade
+SVC -> SVC : policy.decide(context)
+
+alt 年级不符
+  SVC --> UI : BusinessError("仅面向大二、大三")
+  UI --> 学生 : 明确提示
+else 名额已满
+  SVC --> UI : BusinessError("名额已满")
+else 通过
+  SVC -> DB : INSERT registration (APPROVED)
+  note right of DB : 事务提交\n报名已生效
+  SVC -> BUS : publish(event)
+
+  BUS -> DB : reserve(eventId)
+  alt eventId 已存在
+    BUS --> SVC : 幂等跳过
+  else 首次分发
+    BUS -> MSG : handle(event)
+    MSG -> DB : INSERT message
+    BUS -> DB : commit
+
+    BUS -> MAIL : handle(event)
+    MAIL -> SENDER : send(to, subject, body)
+    alt 投递成功
+      SENDER --> MAIL : ok
+      MAIL -> DB : INSERT email_outbox(sent)
+      BUS -> DB : commit
+    else 投递失败
+      SENDER --> MAIL : raise
+      MAIL -> DB : INSERT email_outbox(failed)
+      MAIL -> DB : commit (独立提交保留线索)
+      MAIL --> BUS : raise
+      BUS -> DB : rollback (仅该 handler)
+      BUS -> DB : INSERT notification_failures
+      BUS -> DB : commit
+      note right of BUS : 报名不受影响
+    end
+  end
+  SVC --> UI : 报名成功
+  UI --> 学生 : 成功页 + 站内消息 + 邮件
+end
+@enduml
